@@ -1,25 +1,27 @@
 import os, sys
 import argparse
-from modulator import QAM, OFDM
 import numpy as np
-
 import matplotlib.pyplot as plt
-from utils import randn_c
 import math
+
+from utils import randn_c, level2bits, int2bits
+from modulator import QAM, OFDM
+from equalizer import _calcMMSEFilter
+
 
 if __name__ == "__main__":
     
     # ARGUMENT
     parser = argparse.ArgumentParser()
-    parser.add_argument("-m", "--modulator_size", default=16, type=int)
+    parser.add_argument("-m", "--modulator_size", default=64, type=int)
     # parser.add_argument("-s", "--symbol_cnt", default=1000, type=int)
     
-    parser.add_argument("-fft_size", "--fft_size", default=1024, type=int)
-    parser.add_argument("-cp_size", "--cyclic_size", default=10, type=int)
-    parser.add_argument("-ofdm_cnt", "--num_ofdm_symbols", default=10, type=int)
-    parser.add_argument("-sub_cnt", "--num_used_subcarriers", default=600, type=int)
+    parser.add_argument("-fft_size", "--fft_size", default=24, type=int) # 1024
+    parser.add_argument("-cp_size", "--cyclic_size", default=2, type=int)
+    parser.add_argument("-ofdm_cnt", "--num_ofdm_symbols", default=2, type=int)
+    parser.add_argument("-sub_cnt", "--num_used_subcarriers", default=24, type=int) # 600
     
-    parser.add_argument("-nv", "--noise_var", default=1e-3, type=float)
+    parser.add_argument("-nv", "--noise_var", default=1e-4, type=float)
     parser.add_argument("-bw", "--bandwidth", default=5e6, type=int)
     parser.add_argument("-fd", "--doppler_freq", default=10, type=int)
     
@@ -69,7 +71,7 @@ if __name__ == "__main__":
     ## MODULATION
     modulator = QAM(args.modulator_size)
     modulated_data = modulator.modulate(encoded_data)
-    print(f"<Modulation> QAM Data Shape: {modulated_data.shape}")
+    print(f"<MODULATION> QAM Data Shape: {modulated_data.shape}")
     
     fig, ax = plt.subplots(figsize=(8, 8))
     
@@ -125,16 +127,66 @@ if __name__ == "__main__":
     
     ### FADING
     
+    
     ### NOISE
-    awgn_noise = (randn_c(args.num_receive, num_elements//args.num_transmit) * np.sqrt(args.noise_var))
+    noise_expected_shape = ofdm_modulated_data.shape
+    awgn_noise = (randn_c(noise_expected_shape[0], noise_expected_shape[1]) * np.sqrt(args.noise_var))
     print(f"<CHANNEL> Noise Shape: {awgn_noise.shape}")
     
     ### RECEIVE
-    received_signal = np.dot(channel, mapped_data)
+    received_signal = np.dot(channel, ofdm_modulated_data)
     print(f"<CHANNEL> Received Signal Shape: {received_signal.shape}")
     
     noise_received_signal = received_signal + awgn_noise
     print(f"<CHANNEL> Noise Received Signal Shape: {noise_received_signal.shape}")
     
-    ### DEMAPPING
-    # demapped_data = 
+    ## MMSE EQUALIZER
+    W = _calcMMSEFilter(channel, args.noise_var)
+    
+    W = W * math.sqrt(args.num_transmit)
+    print(f"<EQUALIZER> Coeficient Matrix Shape: {W.shape}")
+    
+    ## SIGNAL FILTERING
+    filtered_signal = np.dot(W, noise_received_signal) 
+    print(f"<EQUALIZER> Filtered Signal Shape: {filtered_signal.shape}")
+    
+    ## OFDM DEMODULATION
+    ofdm_demodulated_data = np.zeros([num_mapped_signal, args.symbol_cnt//2], dtype=complex)
+    
+    for idx in range(num_mapped_signal):
+        _signal = filtered_signal[idx]
+        ofdm_demodulated_data[idx] = ofdm_modulator.demodulate(_signal)
+        
+        fig, ax = plt.subplots(figsize=(8, 8))
+        ax.plot(np.real(ofdm_demodulated_data[idx]), np.imag(ofdm_demodulated_data[idx]), 'r*')
+        ax.axis('equal')
+        
+        plt.savefig(
+            run_dir + f"/{args.fft_size}_{args.cyclic_size}_{args.num_used_subcarriers}-DEOFDM_{idx}.pdf", dpi=300, format="pdf"
+        )
+        plt.savefig(
+            run_dir + f"/{args.fft_size}_{args.cyclic_size}_{args.num_used_subcarriers}-DEOFDM_{idx}.png", dpi=300, format="png"
+        )
+    print(f"<DEOFDM> Data Shape: {ofdm_demodulated_data.shape}")
+    
+    ## DEMAPPING
+    demapped_data = ofdm_demodulated_data.flatten()
+    print(f"<DEMAPPED> Data Shape: {demapped_data.shape}")
+    
+    ## DEMODULATION
+    demodulated_data = modulator.demodulate(demapped_data)
+    print(f"<DEMODULATATION> Data Shape: {demodulated_data.shape}")
+    #======================================================================================================
+    
+    
+    # EVALUATION
+    input_bits = np.array(list(map(int2bits, input_data)))
+    output_bits = np.array(list(map(int2bits, demodulated_data)))
+    
+    print(f"<EVAL> Input Bit Shape: {input_bits.shape}")
+    print(f"<EVAL> Output Bit Shape: {output_bits.shape}")
+    
+    error_cnt = np.sum(input_bits != output_bits)
+    ber = error_cnt/input_bits.shape[0]
+    print(f"Number of Error bits: {error_cnt}")
+    print(f"BER: {ber}")

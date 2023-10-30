@@ -441,6 +441,7 @@ class OFDM:
         # num_ofdm_symbols x fft_size
         # xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
         received_signal_no_CP = self._remove_CP(received_signal)
+        print(f"<DEOFDM> Modulated DEOFDM Cyclic Shape: {received_signal_no_CP.shape}")
 
         # xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
         # - Call The FFT
@@ -448,13 +449,14 @@ class OFDM:
         # Now we calculate the FFT for the second axis. That is equivalent
         # to calculate the fft separately for each row in the
         # received_signal variable.
-        output_fft = (np.fft.fft(received_signal_no_CP, self.fft_size, 1) /
-                      math.sqrt(self._calculate_power_scale()))
+        output_fft = (np.fft.fft(received_signal_no_CP, self.fft_size, 1) / math.sqrt(self._calculate_power_scale()))
         assert isinstance(output_fft, np.ndarray)
+        print(f"<DEOFDM> FFT Output Data Shape: {output_fft.shape}")
 
         # - Call the `_prepare_decoded_signal` method to get the data only
         # from the useful subcarriers
         decoded_symbols = self._prepare_decoded_signal(output_fft)
+        print(f"<DEOFDM> FFT Output Data Shape: {output_fft.shape}")
 
         # Return the decoded data
         return decoded_symbols

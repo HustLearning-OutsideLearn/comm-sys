@@ -351,8 +351,7 @@ def randn_c(*args: int) -> np.ndarray:
 
     """
     # noinspection PyArgumentList
-    return (1.0 / math.sqrt(2.0)) * (np.random.randn(*args) +
-                                     (1j * np.random.randn(*args)))
+    return (1.0 / math.sqrt(2.0)) * (np.random.randn(*args) + (1j * np.random.randn(*args)))
 
 
 def randn_c_RS(RS: np.random.RandomState,
