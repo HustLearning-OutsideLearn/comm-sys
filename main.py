@@ -56,7 +56,7 @@ if __name__ == "__main__":
     
     # DATA INITIALIZATION
     input_data = np.random.randint(0, args.modulator_size, size=args.symbol_cnt)
-    print(f"Input Data Shape: {input_data.shape}")
+    print(f"<Data> Input Data Shape: {input_data.shape}")
     #======================================================================================================
     
     
@@ -69,7 +69,7 @@ if __name__ == "__main__":
     ## MODULATION
     modulator = QAM(args.modulator_size)
     modulated_data = modulator.modulate(encoded_data)
-    print(f"QAM Data Shape: {modulated_data.shape}")
+    print(f"<Modulation> QAM Data Shape: {modulated_data.shape}")
     
     fig, ax = plt.subplots(figsize=(8, 8))
     
@@ -82,57 +82,59 @@ if __name__ == "__main__":
     
     plt.close()
     
+    ### MAPPING
+    num_elements = modulated_data.size
+    
+    mapped_data = (modulated_data.reshape((args.num_transmit, -1), order='F') / math.sqrt(args.num_transmit))
+    
+    print(f"<MAPPING> Mapping Data Shape: {mapped_data.shape}")
+    
     ## OFDM MODULATION
     ofdm_modulator = OFDM(
         fft_size=args.fft_size, 
         cp_size=args.cyclic_size, 
         num_used_subcarriers=args.num_used_subcarriers
     )
-    ofdm_modulated_data = ofdm_modulator.modulate(modulated_data)
-    print(f"OFDM Data Shape: {ofdm_modulated_data.shape}")
+    num_mapped_signal = mapped_data.shape[0]
+    ofdm_modulated_data = np.zeros([num_mapped_signal, (args.fft_size + args.cyclic_size)*args.num_ofdm_symbols], dtype=complex)
     
-    fig, ax = plt.subplots(figsize=(8, 8))
-    ax.plot(np.real(ofdm_modulated_data), np.imag(ofdm_modulated_data), 'r*')
-    ax.axis('equal')
-    
-    plt.savefig(
-        run_dir + f"/{args.fft_size}_{args.cyclic_size}_{args.num_used_subcarriers}-OFDM.pdf", dpi=300, format="pdf"
-    )
-    plt.savefig(
-        run_dir + f"/{args.fft_size}_{args.cyclic_size}_{args.num_used_subcarriers}-OFDM.png", dpi=300, format="png"
-    )
-    
+    for idx in range(num_mapped_signal):
+        _signal = mapped_data[idx]
+        ofdm_modulated_data[idx] = ofdm_modulator.modulate(_signal)
+        
+        fig, ax = plt.subplots(figsize=(8, 8))
+        ax.plot(np.real(ofdm_modulated_data[idx]), np.imag(ofdm_modulated_data[idx]), 'r*')
+        ax.axis('equal')
+        
+        plt.savefig(
+            run_dir + f"/{args.fft_size}_{args.cyclic_size}_{args.num_used_subcarriers}-OFDM_{idx}.pdf", dpi=300, format="pdf"
+        )
+        plt.savefig(
+            run_dir + f"/{args.fft_size}_{args.cyclic_size}_{args.num_used_subcarriers}-OFDM_{idx}.png", dpi=300, format="png"
+        )
+    print(f"<OFDM> Data Shape: {ofdm_modulated_data.shape}")
     #======================================================================================================
-    
     
     ## CHANNEL
     
     ### CHANNEL INIT
     channel = randn_c(args.num_receive, args.num_transmit)
-    print(f"CHANNEL SHAPE: {channel.shape}")
-    
-    num_layers = args.num_transmit
-    print(f"No. Streaming: {num_layers}")
-    
-    ### MAPPING
-    num_elements = ofdm_modulated_data.size
-    
-    mapped_data = (ofdm_modulated_data.reshape((num_layers, -1), order='F') / math.sqrt(args.num_transmit))
-    
-    print(f"Mapping Data Shape: {mapped_data.shape}")
+    print(f"<CHANNEL> CHANNEL SHAPE: {channel.shape}")
+        
+    print(f"<CHANNEL> No. Streaming: {args.num_transmit}")
     
     ### FADING
     
     ### NOISE
     awgn_noise = (randn_c(args.num_receive, num_elements//args.num_transmit) * np.sqrt(args.noise_var))
-    print(f"Noise Shape: {awgn_noise.shape}")
+    print(f"<CHANNEL> Noise Shape: {awgn_noise.shape}")
     
     ### RECEIVE
     received_signal = np.dot(channel, mapped_data)
-    print(f"Received Signal Shape: {received_signal.shape}")
+    print(f"<CHANNEL> Received Signal Shape: {received_signal.shape}")
     
     noise_received_signal = received_signal + awgn_noise
-    print(f"Noise Received Signal Shape: {noise_received_signal.shape}")
+    print(f"<CHANNEL> Noise Received Signal Shape: {noise_received_signal.shape}")
     
     ### DEMAPPING
     # demapped_data = 

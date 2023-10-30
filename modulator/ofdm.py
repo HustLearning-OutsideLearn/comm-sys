@@ -109,8 +109,7 @@ class OFDM:
             subcarriers. Num_ofdm_symbols is the number of OFDM symbols
             required to transmit `input_data_size` symbols.
         """
-        num_ofdm_symbols = (int(
-            np.ceil(float(input_data_size) / self.num_used_subcarriers)))
+        num_ofdm_symbols = (int(np.ceil(float(input_data_size) / self.num_used_subcarriers)))
         zeropad = (self.num_used_subcarriers * num_ofdm_symbols -
                    input_data_size)
         return zeropad, num_ofdm_symbols
@@ -273,8 +272,7 @@ class OFDM:
 
         return input_ifft
 
-    def _prepare_decoded_signal(self,
-                                decoded_signal: np.ndarray) -> np.ndarray:
+    def _prepare_decoded_signal(self, decoded_signal: np.ndarray) -> np.ndarray:
         """
         Prepare the decoded signal that was processed by the FFT in the
         demodulate function.
@@ -407,16 +405,19 @@ class OFDM:
         # bi-dimensional array, where each row has the input data for a
         # single OFDM symbol.
         input_ifft = self._prepare_input_signal(input_signal)
+        print(f"<OFDM> IFFT Input Data Shape: {input_ifft.shape}")
 
         # Now we calculate the ifft for the second axis. That is equivalent
         # to calculate the ifft separately for each row in the input_ifft
         # variable.
-        output_ifft = (math.sqrt(self._calculate_power_scale()) *
-                       np.fft.ifft(input_ifft, self.fft_size, 1))
+        output_ifft = (math.sqrt(self._calculate_power_scale()) * np.fft.ifft(input_ifft, self.fft_size, axis=1))
+        print(f"<OFDM> IFFT Output Data Shape: {output_ifft.shape}")
+        
         assert isinstance(output_ifft, np.ndarray)
 
         # Add the Cyclic prefix
         modulated_ofdm = self._add_CP(output_ifft)
+        print(f"<OFDM> Modulated OFDM Cyclic Shape: {modulated_ofdm.shape}")
 
         # Change the shape to one dimensional array and return that array
         return modulated_ofdm.flatten()
